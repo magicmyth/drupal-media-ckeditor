@@ -10,6 +10,24 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
  * anymore.
  */
 ( function() {
+  function prepareDataForWysiwygMode(data) {
+    data = Drupal.media.filter.replaceTokenWithPlaceholder(data);
+    // Legacy media wrapper.
+    mediaPluginDefinition.mediaLegacyWrappers = (data.indexOf("<!--MEDIA-WRAPPER-START-") !== -1);
+    if (mediaPluginDefinition.mediaLegacyWrappers) {
+      data = data.replace(/<!--MEDIA-WRAPPER-START-(\d+)-->(.*?)<!--MEDIA-WRAPPER-END-\d+-->/gi, '<mediawrapper data="$1">$2</mediawrapper>');
+    }
+    return data;
+  }
+  function prepareDataForSourceMode(data) {
+    // Legacy wrapper
+    if (mediaPluginDefinition.mediaLegacyWrappers) {
+      data = data.replace(/<mediawrapper data="(.*)">(.*?)<\/mediawrapper>/gi, '<!--MEDIA-WRAPPER-START-$1-->$2<!--MEDIA-WRAPPER-END-$1-->');
+    }
+    data = Drupal.media.filter.replacePlaceholderWithToken(data);
+    return data;
+  }
+
   var mediaPluginDefinition = {
     icons: 'media',
     requires: ['button'],
@@ -19,7 +37,7 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
     mediaLegacyWrappers: false,
 
     // Wrap Drupal plugin in a proxy plugin.
-    init: function(editor){
+    init: function(editor) {
       editor.addCommand( 'media',
       {
         exec: function (editor) {
@@ -82,23 +100,6 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
         // Objects should be selected as a whole in the editor.
         CKEDITOR.dtd.$object['mediawrapper'] = 1;
       }
-      function prepareDataForWysiwygMode(data) {
-        data = Drupal.media.filter.replaceTokenWithPlaceholder(data);
-        // Legacy media wrapper.
-        mediaPluginDefinition.mediaLegacyWrappers = (data.indexOf("<!--MEDIA-WRAPPER-START-") !== -1);
-        data = data.replace(/<!--MEDIA-WRAPPER-START-(\d+)-->(.*?)<!--MEDIA-WRAPPER-END-\d+-->/gi, '<mediawrapper data="$1">$2</mediawrapper>');
-        return data;
-      }
-      function prepareDataForSourceMode(data) {
-        var replacement = '$2';
-        // Legacy wrapper
-        if (mediaPluginDefinition.mediaLegacyWrappers) {
-          replacement = '<!--MEDIA-WRAPPER-START-$1-->$2<!--MEDIA-WRAPPER-END-$1-->';
-        }
-        data = data.replace(/<mediawrapper data="(.*)">(.*?)<\/mediawrapper>/gi, replacement);
-        data = Drupal.media.filter.replacePlaceholderWithToken(data);
-        return data;
-      }
 
       // Ensure the tokens are replaced by placeholders while editing.
       // Check for widget support.
@@ -106,21 +107,21 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
         editor.widgets.add( 'mediabox',
         {
           button: 'Create a mediabox',
-          template: '<mediawrapper></mediawrapper>',
+          // NOTE: The template will never actually be used but Widget requires it.
+          template: '<span class="media-element"></span>',
           editables: {},
           allowedContent: '*',
           upcast: function( element ) {
-            if (element.name != 'mediawrapper') {
-              // Ensure media tokens are converted to media placeholdes.
-              element.setHtml(prepareDataForWysiwygMode(element.getHtml()));
-            }
-            return element.name == 'mediawrapper';
+            return element.hasClass('media-element');
           },
 
           downcast: function( widgetElement ) {
-            var token = prepareDataForSourceMode(widgetElement.getOuterHtml());
+            if (widgetElement.hasClass('media-element-token')) {
+              var token = widgetElement.getHtml();
+            } else {
+              var token = prepareDataForSourceMode(widgetElement.getOuterHtml());
+            }
             return new CKEDITOR.htmlParser.text(token);
-            return element.name == 'mediawrapper';
           }
         });
       }
@@ -207,6 +208,53 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
           }
         });
       }
+    },
+
+    afterInit: function( editor ) {
+      var mediaTokenReplaceRegex = /\[\[.*?\]\]/g;
+
+      editor.dataProcessor.dataFilter.addRules( {
+        text: function( text, node ) {
+          var dtd = node.parent && CKEDITOR.dtd[ node.parent.name ];
+
+          // Skip the case when placeholder is in elements like <title> or <textarea>
+          // but upcast placeholder in custom elements (no DTD).
+          if ( dtd && !dtd.span )
+            return;
+
+          Drupal.media.filter.ensure_tagmap();
+          return text.replace( mediaTokenReplaceRegex, function( match ) {
+            // Creating widget code
+            var widgetWrapper = null,
+              //media = Drupal.settings.tagmap[match];
+              media = prepareDataForWysiwygMode(match);
+              //media = prepareDataForWysiwygMode(match);
+              //= Drupal.media.filter.getWysiwygHTML(element)
+
+            if (typeof media != 'undefined') {
+              var el = new CKEDITOR.dom.element.createFromHtml(media, editor.document);
+              var widgetWrapper = '';
+              if ( el.$.nodeType == CKEDITOR.NODE_ELEMENT ) {
+                widgetWrapper = editor.widgets.wrapElement( el, 'mediabox' ).getOuterHtml();
+              } else if ( el.$.nodeType == CKEDITOR.NODE_TEXT ) {
+                // If the token could not be converted then lets protect it as is.
+                if (media.charAt(0) == '[' && media.substr(media.length -1) == ']') {
+                  widgetWrapper = editor.widgets.wrapElement(
+                    new CKEDITOR.dom.element.createFromHtml(
+                      '<span class="media-element media-element-token">' + media + '</span>',
+                      editor.document
+                    ),
+                    'mediabox').getOuterHtml();
+                }
+              }
+              return widgetWrapper;
+            }
+
+            return;
+
+          } );
+        }
+      } );
     }
   };
   // Add dependency to widget plugin if possible.

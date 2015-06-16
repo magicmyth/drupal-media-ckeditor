@@ -59,7 +59,7 @@
         ckeditorInstance.plugins.media.mediaLegacyWrappers = true;
         wysiwygHTML = wysiwygHTML.replace(/<!--MEDIA-WRAPPER-START-(\d+)-->(.*?)<!--MEDIA-WRAPPER-END-\d+-->/gi, '');
       } else {
-        wysiwygHTML = '<mediawrapper data="">' + wysiwygHTML + '</mediawrapper>';
+        wysiwygHTML = wysiwygHTML;
       }
 
       var editorElement = CKEDITOR.dom.element.createFromHtml(wysiwygHTML);

@@ -44,10 +44,13 @@
           if (!media && media_definition.fid) {
             Drupal.media.filter.ensureSourceMap();
             var source = Drupal.settings.mediaSourceMap[media_definition.fid];
-            media = document.createElement(source.tagName);
-            media.src = source.src;
-            media.innerHTML = source.innerHTML;
+            if (source) {
+              media = document.createElement(source.tagName);
+              media.src = source.src;
+            }
           }
+          // We seem to lack what we need for this token. Lets leave it alone.
+          if (!media) continue;
 
           // Apply attributes.
           var element = Drupal.media.filter.create_element(media, media_definition);
