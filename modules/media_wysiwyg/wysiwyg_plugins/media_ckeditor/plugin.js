@@ -10,6 +10,8 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
  * anymore.
  */
 ( function() {
+  var alignmentsObj = { left: 0, center: 1, right: 2 };
+
   function prepareDataForWysiwygMode(data) {
     data = Drupal.media.filter.replaceTokenWithPlaceholder(data);
     // Legacy media wrapper.
@@ -266,6 +268,29 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
     } );
   }
 
+  function setWrapperAlign( widget, alignClasses ) {
+    var wrapper = widget.wrapper,
+      align = widget.data.align;
+
+    if ( alignClasses ) {
+      // Remove all align classes first.
+      for ( var i = 3; i--; )
+        wrapper.removeClass( alignClasses[ i ] );
+
+      wrapper.addClass( alignClasses[ alignmentsObj[ align ] ] );
+    } else {
+      if ( align == 'center' ) {
+        wrapper.removeStyle( 'float' );
+      }
+      else {
+        if ( align == 'none' )
+          wrapper.removeStyle( 'float' );
+        else
+          wrapper.setStyle( 'float', align );
+      }
+    }
+  }
+
   var mediaPluginDefinition = {
     icons: 'media',
     requires: ['button'],
@@ -319,6 +344,9 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
     init: function(editor) {
       // Register the editing dialog.
       CKEDITOR.dialog.add( 'mediabox', this.path + 'dialogs/mediabox.js' );
+
+      // Share Image2's alignment classes.
+      var alignClasses = editor.config.image2_alignClasses;
 
       editor.addCommand( 'media',
       {
@@ -401,11 +429,36 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
             ['img{width,height}: sizeToStyle']
           ],
           dialog: 'mediabox',
+          // Though the upcast is unlikley to be involved with this widget
+          // because of how the widget is setup it's probably a good idea
+          // to have this anyway.
           upcast: function( element ) {
-            return element.hasClass('media-element');
+            if ( element.hasClass('media-element') ) {
+              if ( element.name == 'img' ) {
+                setWrapperAlign(this, alignClasses);
+              }
+              return true;
+            }
+            return false;
           },
 
           downcast: function( widgetElement ) {
+            var align = this.data.align;
+            if (widgetElement.name == 'img' && align != 'none' ) {
+              var attrs = widgetElement.attributes,
+                styles = CKEDITOR.tools.parseCssText( attrs.style || '' );
+
+              if ( align in { left: 1, right: 1 } ) {
+                if ( alignClasses )
+                  widgetElement.addClass( alignClasses[ alignmentsObj[ align ] ] );
+                else
+                  styles[ 'float' ] = align;
+              }
+
+              // Update element styles.
+              if ( !alignClasses && !CKEDITOR.tools.isEmpty( styles ) )
+                attrs.style = CKEDITOR.tools.writeCssText( styles );
+            }
             if (widgetElement.hasClass('media-element-token')) {
               var token = widgetElement.getHtml();
             } else {
@@ -415,15 +468,55 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
           },
 
           init: function() {
-            var el = this.element;
+            var el = this.element,
+              align;
             if (el.getName() == 'img') {
+              // Read the initial left/right alignment from the class set on element.
+              if ( alignClasses ) {
+                if ( el.hasClass( alignClasses[ alignmentsObj.left ] ) ) {
+                  align = 'left';
+                } else if ( el.hasClass( alignClasses[ alignmentsObj.right ] ) ) {
+                  align = 'right'
+                }
+                if ( align ) {
+                  alignElement.removeClass( alignClasses[ alignmentsObj[ align ] ] );
+                } else {
+                  align = 'none';
+                }
+                this.setData( 'align', align );
+              }
+              // Read initial float style from figure/image and then remove it.
+              else {
+                align = el.getStyle( 'float' ) || 'none';
+                this.setData('align', align);
+                el.removeStyle( 'float' );
+              }
+
+              setWrapperAlign(this, alignClasses);
               this.setData('width', el.getStyle('width') || el.getAttribute( 'width' ) || '');
               this.setData('height', el.getStyle('height') || el.getAttribute( 'height' ) || '');
               setupResizer( this );
             }
           },
           data: function() {
-            var el = this.element;
+            var el = this.element, align = this.data.align;
+            if ( el.getName() == 'img' && align ) {
+              var wrapper = this.wrapper;
+              if ( alignClasses ) {
+                // Remove all align classes first.
+                for ( var i = 3; i--; )
+                  wrapper.removeClass( alignClasses[ i ] );
+
+                if ( align != 'none' ) {
+                  wrapper.addClass( alignClasses[ alignmentsObj[ align ] ] );
+                }
+              } else {
+                if ( align == 'none' || align == 'center' )
+                  wrapper.removeStyle( 'float' );
+                else
+                  wrapper.setStyle( 'float', align );
+              }
+            }
             if ( this.data.width ) {
               el.setStyle( 'width', this.data.width );
             } else {

@@ -1,6 +1,7 @@
 // Dialogue definition.
 CKEDITOR.dialog.add( 'mediabox', function( editor ) {
-  var styles = {};
+  var styles = {},
+    commonLang = editor.lang.common;
 
   function initElementStyle(stylesField) {
     stylesField.items = [[ editor.lang.common.notSet, '' ]];
@@ -44,6 +45,23 @@ CKEDITOR.dialog.add( 'mediabox', function( editor ) {
                 // because the former does not check if the style is allowed.
                 widget.applyStyle( style );
               }
+            }
+          },
+          {
+            id: 'align',
+            type: 'radio',
+            items: [
+              [ commonLang.alignNone, 'none' ],
+              [ commonLang.alignLeft, 'left' ],
+              [ commonLang.alignCenter, 'center' ],
+              [ commonLang.alignRight, 'right' ]
+            ],
+            label: commonLang.align,
+            setup: function( widget ) {
+              this.setValue( widget.data.align );
+            },
+            commit: function( widget ) {
+              widget.setData( 'align', this.getValue() );
             }
           },
           {
