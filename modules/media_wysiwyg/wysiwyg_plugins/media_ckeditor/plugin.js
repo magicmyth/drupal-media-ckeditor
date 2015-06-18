@@ -28,6 +28,244 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
     return data;
   }
 
+  // Defines all features related to drag-driven image resizing.
+  //
+  // This has been near wholesale stolen from the image2 plugin. Credits go
+  // the Image2 devs.
+  //
+  // @param {CKEDITOR.plugins.widget} widget
+  function setupResizer( widget ) {
+    var editor = widget.editor,
+      editable = editor.editable(),
+      doc = editor.document,
+
+      // Store the resizer in a widget for testing (#11004).
+      resizer = widget.resizer = doc.createElement( 'span' );
+
+    resizer.addClass( 'cke_mediabox_resizer' );
+    resizer.setAttribute( 'title', 'Resize' );
+    resizer.append( new CKEDITOR.dom.text( '\u200b', doc ) );
+
+    // Inline widgets don't need a resizer wrapper as an image spans the entire widget.
+    if ( !widget.inline ) {
+      var imageOrLink = widget.parts.link || widget.parts.image,
+        oldResizeWrapper = imageOrLink.getParent(),
+        resizeWrapper = doc.createElement( 'span' );
+
+      resizeWrapper.addClass( 'cke_mediabox_resizer_wrapper' );
+      resizeWrapper.append( imageOrLink );
+      resizeWrapper.append( resizer );
+      widget.element.append( resizeWrapper, true );
+
+      // Remove the old wrapper which could came from e.g. pasted HTML
+      // and which could be corrupted (e.g. resizer span has been lost).
+      if ( oldResizeWrapper.is( 'span' ) )
+        oldResizeWrapper.remove();
+    } else {
+      widget.wrapper.append( resizer );
+    }
+
+    // Calculate values of size variables and mouse offsets.
+    resizer.on( 'mousedown', function( evt ) {
+      var image = widget.element,
+
+        // "factor" can be either 1 or -1. I.e.: For right-aligned images, we need to
+        // subtract the difference to get proper width, etc. Without "factor",
+        // resizer starts working the opposite way.
+        factor = widget.data.align == 'right' ? -1 : 1,
+
+        // The x-coordinate of the mouse relative to the screen
+        // when button gets pressed.
+        startX = evt.data.$.screenX,
+        startY = evt.data.$.screenY,
+
+        // The initial dimensions and aspect ratio of the image.
+        startWidth = image.$.clientWidth,
+        startHeight = image.$.clientHeight,
+        ratio = startWidth / startHeight,
+
+        listeners = [],
+
+        // A class applied to editable during resizing.
+        cursorClass = 'cke_image_s' + ( !~factor ? 'w' : 'e' ),
+
+        nativeEvt, newWidth, newHeight, updateData,
+        moveDiffX, moveDiffY, mpartsoveRatio;
+
+      // Save the undo snapshot first: before resizing.
+      editor.fire( 'saveSnapshot' );
+
+      // Mousemove listeners are removed on mouseup.
+      attachToDocuments( 'mousemove', onMouseMove, listeners );
+
+      // Clean up the mousemove listener. Update widget data if valid.
+      attachToDocuments( 'mouseup', onMouseUp, listeners );
+
+      // The entire editable will have the special cursor while resizing goes on.
+      editable.addClass( cursorClass );
+
+      // This is to always keep the resizer element visible while resizing.
+      resizer.addClass( 'cke_mediabox_resizing' );
+
+      // Attaches an event to a global document if inline editor.
+      // Additionally, if classic (`iframe`-based) editor, also attaches the same event to `iframe`'s document.
+      function attachToDocuments( name, callback, collection ) {
+        var globalDoc = CKEDITOR.document,
+          listeners = [];
+
+        if ( !doc.equals( globalDoc ) )
+          listeners.push( globalDoc.on( name, callback ) );
+
+        listeners.push( doc.on( name, callback ) );
+
+        if ( collection ) {
+          for ( var i = listeners.length; i--; )
+            collection.push( listeners.pop() );
+        }
+      }
+
+      // Calculate with first, and then adjust height, preserving ratio.
+      function adjustToX() {
+        newWidth = startWidth + factor * moveDiffX;
+        newHeight = Math.round( newWidth / ratio );
+      }
+
+      // Calculate height first, and then adjust width, preserving ratio.
+      function adjustToY() {
+        newHeight = startHeight - moveDiffY;
+        newWidth = Math.round( newHeight * ratio );
+      }
+
+      // This is how variables refer to the geometry.
+      // Note: x corresponds to moveOffset, this is the position of mouse
+      // Note: o corresponds to [startX, startY].
+      //
+      // +--------------+--------------+
+      // |              |              |
+      // |      I       |      II      |
+      // |              |              |
+      // +------------- o -------------+ _ _ _
+      // |              |              |      ^
+      // |      VI      |     III      |      | moveDiffY
+      // |              |         x _ _ _ _ _ v
+      // +--------------+---------|----+
+      //                |         |
+      //                 <------->
+      //                 moveDiffX
+      function onMouseMove( evt ) {
+        nativeEvt = evt.data.$;
+
+        // This is how far the mouse is from the point the button was pressed.
+        moveDiffX = nativeEvt.screenX - startX;
+        moveDiffY = startY - nativeEvt.screenY;
+
+        // This is the aspect ratio of the move difference.
+        moveRatio = Math.abs( moveDiffX / moveDiffY );
+
+        // Left, center or none-aligned widget.
+        if ( factor == 1 ) {
+          if ( moveDiffX <= 0 ) {
+            // Case: IV.
+            if ( moveDiffY <= 0 )
+              adjustToX();
+
+            // Case: I.
+            else {
+              if ( moveRatio >= ratio )
+                adjustToX();
+              else
+                adjustToY();
+            }
+          } else {
+            // Case: III.
+            if ( moveDiffY <= 0 ) {
+              if ( moveRatio >= ratio )
+                adjustToY();
+              else
+                adjustToX();
+            }
+
+            // Case: II.
+            else {
+              adjustToY();
+            }
+          }
+        }
+
+        // Right-aligned widget. It mirrors behaviours, so I becomes II,
+        // IV becomes III and vice-versa.
+        else {
+          if ( moveDiffX <= 0 ) {
+            // Case: IV.
+            if ( moveDiffY <= 0 ) {
+              if ( moveRatio >= ratio )
+                adjustToY();
+              else
+                adjustToX();
+            }
+
+            // Case: I.
+            else {
+              adjustToY();
+            }
+          } else {
+            // Case: III.
+            if ( moveDiffY <= 0 )
+              adjustToX();
+
+            // Case: II.
+            else {
+              if ( moveRatio >= ratio ) {
+                adjustToX();
+              } else {
+                adjustToY();
+              }
+            }
+          }
+        }
+
+        // Don't update attributes if less than 10.
+        // This is to prevent images to visually disappear.
+        if ( newWidth >= 15 && newHeight >= 15 ) {
+          // @todo make this configurable so we can use attributes.
+          // image.setAttributes( { width: newWidth, height: newHeight } );
+          image.setStyles( { width: newWidth + 'px', height: newHeight + 'px' } );
+          updateData = true;
+        } else {
+          updateData = false;
+        }
+      }
+
+      function onMouseUp() {
+        var l;
+
+        while ( ( l = listeners.pop() ) )
+          l.removeListener();
+
+        // Restore default cursor by removing special class.
+        editable.removeClass( cursorClass );
+
+        // This is to bring back the regular behaviour of the resizer.
+        resizer.removeClass( 'cke_mediabox_resizing' );
+
+        if ( updateData ) {
+          widget.setData( { width: newWidth, height: newHeight } );
+
+          // Save another undo snapshot: after resizing.
+          editor.fire( 'saveSnapshot' );
+        }
+
+        // Don't update data twice or more.
+        updateData = false;
+      }
+    } );
+
+    // Change the position of the widget resizer when data changes.
+    widget.on( 'data', function() {
+      resizer[ widget.data.align == 'right' ? 'addClass' : 'removeClass' ]( 'cke_mediabox_resizer_left' );
+    } );
+  }
+
   var mediaPluginDefinition = {
     icons: 'media',
     requires: ['button'],
@@ -35,6 +273,47 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
     // of the editor have the widget plugin disabled by default.
     hasWidgetSupport: typeof(CKEDITOR.plugins.registered.widget) != 'undefined',
     mediaLegacyWrappers: false,
+
+    onLoad: function() {
+      CKEDITOR.addCss(
+      'img.media-element{' +
+        // This is to remove unwanted space so resize
+        // wrapper is displayed property.
+        'line-height:0' +
+      '}' +
+      '.cke_mediabox_resizer{' +
+        'display:none;' +
+        'position:absolute;' +
+        'width:10px;' +
+        'height:10px;' +
+        'bottom:-5px;' +
+        'right:-5px;' +
+        'background:#000;' +
+        'outline:1px solid #fff;' +
+        // Prevent drag handler from being misplaced (#11207).
+        'line-height:0;' +
+        'cursor:se-resize;' +
+      '}' +
+      '.cke_mediabox_resizer_wrapper{' +
+        'position:relative;' +
+        'display:inline-block;' +
+        'line-height:0;' +
+      '}' +
+      // Bottom-left corner style of the resizer.
+      '.cke_mediabox_resizer.cke_mediabox_resizer_left{' +
+        'right:auto;' +
+        'left:-5px;' +
+        'cursor:sw-resize;' +
+      '}' +
+      '.cke_widget_wrapper:hover .cke_mediabox_resizer,' +
+      '.cke_mediabox_resizer.cke_mediabox_resizing{' +
+        'display:block' +
+      '}' +
+      // Expand widget wrapper when linked inline image.
+      '.cke_widget_wrapper>a{' +
+        'display:inline-block' +
+      '}' );
+    },
 
     // Wrap Drupal plugin in a proxy plugin.
     init: function(editor) {
@@ -115,6 +394,12 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
           editables: {},
           requiredContent: '*(!media-element)',
           allowedContent: '*',
+          styleableElements: 'img',
+          // This widget converts style-driven dimensions to attributes.
+          // NOTE This does not seem to do anything.
+          contentTransformations: [
+            ['img{width,height}: sizeToStyle']
+          ],
           dialog: 'mediabox',
           upcast: function( element ) {
             return element.hasClass('media-element');
@@ -134,6 +419,7 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
             if (el.getName() == 'img') {
               this.setData('width', el.getStyle('width') || el.getAttribute( 'width' ) || '');
               this.setData('height', el.getStyle('height') || el.getAttribute( 'height' ) || '');
+              setupResizer( this );
             }
           },
           data: function() {
