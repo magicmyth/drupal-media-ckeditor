@@ -38,6 +38,9 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
 
     // Wrap Drupal plugin in a proxy plugin.
     init: function(editor) {
+      // Register the editing dialog.
+      CKEDITOR.dialog.add( 'mediabox', this.path + 'dialogs/mediabox.js' );
+
       editor.addCommand( 'media',
       {
         exec: function (editor) {
@@ -110,7 +113,9 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
           // NOTE: The template will never actually be used but Widget requires it.
           template: '<span class="media-element"></span>',
           editables: {},
+          requiredContent: '*(!media-element)',
           allowedContent: '*',
+          dialog: 'mediabox',
           upcast: function( element ) {
             return element.hasClass('media-element');
           },
@@ -122,6 +127,27 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
               var token = prepareDataForSourceMode(widgetElement.getOuterHtml());
             }
             return new CKEDITOR.htmlParser.text(token);
+          },
+
+          init: function() {
+            var el = this.element;
+            if (el.getName() == 'img') {
+              this.setData('width', el.getStyle('width') || el.getAttribute( 'width' ) || '');
+              this.setData('height', el.getStyle('height') || el.getAttribute( 'height' ) || '');
+            }
+          },
+          data: function() {
+            var el = this.element;
+            if ( this.data.width ) {
+              el.setStyle( 'width', this.data.width );
+            } else {
+              el.removeStyle( 'width' );
+            }
+            if ( this.data.height ) {
+              el.setStyle( 'height', this.data.height );
+            } else {
+              el.removeStyle( 'height' );
+            }
           }
         });
       }
