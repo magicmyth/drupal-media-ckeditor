@@ -9,8 +9,53 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
  * @TODO Remove all the legecy media wrapper once it's sure nobody uses that
  * anymore.
  */
-( function() {
+( function($) {
   var alignmentsObj = { left: 0, center: 1, right: 2 };
+
+  /**
+    * Create a macro representation of the inserted media element.
+    *
+    * @param element (jQuery object)
+    *    A media element with attached serialized file info.
+    */
+  function create_macro(element) {
+    var file_info = extract_file_info(element);
+    if (file_info) {
+      return '[[' + JSON.stringify(file_info) + ']]';
+    }
+    return false;
+  }
+
+  /**
+    * Extract the file info from a WYSIWYG placeholder element as JSON.
+    *
+    * @param element (jQuery object)
+    *    A media element with associated file info via a file id (fid).
+    */
+  function extract_file_info(element) {
+    var fid, file_info, value;
+
+    if (fid = element.data('fid')) {
+      Drupal.media.filter.ensureDataMap();
+
+      if (file_info = Drupal.settings.mediaDataMap[fid]) {
+        file_info.attributes = {};
+
+        $.each(Drupal.settings.media.wysiwyg_allowed_attributes, function(i, a) {
+          if (value = element.attr(a)) {
+            // Replace &quot; by \" to avoid error with JSON format.
+            if (typeof value == 'string') {
+              value = value.replace('&quot;', '\\"');
+            }
+            file_info.attributes[a] = value;
+          }
+        });
+
+      }
+    }
+
+    return file_info;
+  }
 
   function prepareDataForWysiwygMode(data) {
     data = Drupal.media.filter.replaceTokenWithPlaceholder(data);
@@ -21,13 +66,15 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
     }
     return data;
   }
-  function prepareDataForSourceMode(data) {
+  function prepareDataForSourceMode(markup) {
     // Legacy wrapper
     if (mediaPluginDefinition.mediaLegacyWrappers) {
-      data = data.replace(/<mediawrapper data="(.*)">(.*?)<\/mediawrapper>/gi, '<!--MEDIA-WRAPPER-START-$1-->$2<!--MEDIA-WRAPPER-END-$1-->');
+      markup = data.replace(/<mediawrapper data="(.*)">(.*?)<\/mediawrapper>/gi, '<!--MEDIA-WRAPPER-START-$1-->$2<!--MEDIA-WRAPPER-END-$1-->');
     }
-    data = Drupal.media.filter.replacePlaceholderWithToken(data);
-    return data;
+    var macro = create_macro($(markup));
+    Drupal.settings.tagmap[macro] = markup;
+
+    return macro;
   }
 
   // Defines all features related to drag-driven image resizing.
@@ -667,4 +714,4 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
     mediaPluginDefinition.requires.push('widget');
   }
   CKEDITOR.plugins.add( 'media', mediaPluginDefinition);
-} )();
+} )(jQuery);
