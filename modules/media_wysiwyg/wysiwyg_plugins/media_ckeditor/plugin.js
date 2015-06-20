@@ -678,13 +678,23 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
           return text.replace( mediaTokenReplaceRegex, function( match ) {
             // Creating widget code
             var widgetWrapper = null,
-              //media = Drupal.settings.tagmap[match];
               media = prepareDataForWysiwygMode(match);
-              //media = prepareDataForWysiwygMode(match);
-              //= Drupal.media.filter.getWysiwygHTML(element)
 
             if (typeof media != 'undefined') {
               var el = new CKEDITOR.dom.element.createFromHtml(media, editor.document);
+              // As this happens just after the HTML has been setup and
+              // CKEditor does not allow a text node (the token) to be
+              // outside a block element, the token will end up within a
+              // <p> tag. If this media-element is a block element then
+              // upon transformation it will be moved out of the <p>
+              // tag, thus leaving a new empty <p> tag upon every source
+              // to HTML transformation.
+              if (node.parent && CKEDITOR.dtd.$block[el.getName()] && !CKEDITOR.dtd.$blockLimit[node.parent.name]) {
+                if (node.parent.children.length < 2) {
+                  node.parent.replaceWithChildren();
+                }
+              }
+
               var widgetWrapper = '';
               if ( el.$.nodeType == CKEDITOR.NODE_ELEMENT ) {
                 widgetWrapper = editor.widgets.wrapElement( el, 'mediabox' ).getOuterHtml();
