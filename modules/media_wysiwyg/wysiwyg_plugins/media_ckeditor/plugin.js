@@ -526,7 +526,7 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
                   align = 'right'
                 }
                 if ( align ) {
-                  alignElement.removeClass( alignClasses[ alignmentsObj[ align ] ] );
+                  el.removeClass( alignClasses[ alignmentsObj[ align ] ] );
                 } else {
                   align = 'none';
                 }
