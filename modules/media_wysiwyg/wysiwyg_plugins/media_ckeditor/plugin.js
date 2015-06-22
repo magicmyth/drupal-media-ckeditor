@@ -689,7 +689,7 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
               // upon transformation it will be moved out of the <p>
               // tag, thus leaving a new empty <p> tag upon every source
               // to HTML transformation.
-              if (node.parent && CKEDITOR.dtd.$block[el.getName()] && !CKEDITOR.dtd.$blockLimit[node.parent.name]) {
+              if (node.parent && el.$.nodeType == CKEDITOR.NODE_ELEMENT && CKEDITOR.dtd.$block[el.getName()] && !CKEDITOR.dtd.$blockLimit[node.parent.name]) {
                 if (node.parent.children.length < 2) {
                   node.parent.replaceWithChildren();
                 }
