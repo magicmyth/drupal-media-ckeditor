@@ -26,6 +26,58 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
     return false;
   }
 
+  function replaceTokenWithPlaceholder(token) {
+    Drupal.media.filter.ensure_tagmap();
+
+    if (token.indexOf('"type":"media"') == -1) {
+      console.log("not media token");
+      return token;
+    }
+
+    // Check if the macro exists in the tagmap. This ensures backwards
+    // compatibility with existing media and is moderately more efficient
+    // than re-building the element.
+    var media = Drupal.settings.tagmap[token];
+    var media_json = token.replace('[[', '').replace(']]', '');
+
+    // Ensure that the media JSON is valid.
+    try {
+      var media_definition = JSON.parse(media_json);
+    }
+    catch (err) {
+      // @todo: error logging.
+      // Content should be returned to prevent an empty editor.
+      return token;
+    }
+
+    // Re-build the media if the macro has changed from the tagmap.
+    if (!media && media_definition.fid) {
+      Drupal.media.filter.ensureSourceMap();
+      var source = Drupal.settings.mediaSourceMap[media_definition.fid];
+      if (source) {
+        media = document.createElement(source.tagName);
+        media.src = source.src;
+      }
+    }
+    // We seem to lack what we need for this token. Lets leave it alone.
+    if (!media) return token;
+
+    // Temporary work around so we can keep using
+    // Drupal.media.filter.create_element(). Within that file if a link
+    // link text override is set it will replace the content of anything
+    // that is wrapped in a link.
+    media_definition.link_text = null;
+    // jQuery will fail if html strings are passed that containing any
+    // whitespace around the outer HTML. With Drupal's template system
+    // this can easily happen so always trim the passed string.
+    media = media.trim();
+    // Apply attributes.
+    var element = Drupal.media.filter.create_element(media, media_definition);
+    var markup  = Drupal.media.filter.outerHTML(element);
+
+    return markup;
+  }
+
   /**
     * Extract the file info from a WYSIWYG placeholder element as JSON.
     *
@@ -58,7 +110,7 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
   }
 
   function prepareDataForWysiwygMode(data) {
-    data = Drupal.media.filter.replaceTokenWithPlaceholder(data);
+    data = replaceTokenWithPlaceholder(data);
     // Legacy media wrapper.
     mediaPluginDefinition.mediaLegacyWrappers = (data.indexOf("<!--MEDIA-WRAPPER-START-") !== -1);
     if (mediaPluginDefinition.mediaLegacyWrappers) {
