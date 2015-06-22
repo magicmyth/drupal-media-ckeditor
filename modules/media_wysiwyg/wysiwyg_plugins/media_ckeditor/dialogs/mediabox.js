@@ -94,20 +94,43 @@ CKEDITOR.dialog.add( 'mediabox', function( editor ) {
       // Preparing for the 'elementStyle' field.
       var dialog = this,
         stylesField = this.getContentElement( 'info', 'elementStyle' ),
+        alignField = this.getContentElement( 'info', 'align' ),
+        widthField = this.getContentElement( 'info', 'width' ),
+        heightField = this.getContentElement( 'info', 'height' ),
         // Hopefully this is reliable enough as there currently no other
         // way to get the element within "onShow".
         // @see ticket: #12374.
         widget = editor.widgets.focused;
 
-      // Reset the styles object
+      // Currently only supporting these options for images.
+      if (widget.element.getName() != 'img') {
+        alignField.disable();
+        for (var i = 0; i < alignField._.children.length; i++) {
+          alignField._.children[i].disable();
+        }
+        alignField.getElement().hide();
+        widthField.disable();
+        widthField.getElement().hide();
+        heightField.disable();
+        heightField.getElement().hide();
+      } else {
+        // Radios must be re-enabled
+        for (var i = 0; i < alignField._.children.length; i++) {
+          alignField._.children[i].enable();
+        }
+        alignField.getElement().show();
+        widthField.getElement().show();
+        heightField.getElement().show();
+      }
 
+      // Reset the styles object
       initElementStyle(stylesField);
       // Reuse the 'stylescombo' plugin's styles definition.
       editor.getStylesSet( function( stylesDefinitions ) {
         var styleName, style;
 
         if ( stylesDefinitions ) {
-          // Digg only those styles that apply to 'div'.
+          // Digg only those styles that apply to the element or widget.
           for ( var i = 0; i < stylesDefinitions.length; i++ ) {
             var styleDefinition = stylesDefinitions[ i ];
             if ( (styleDefinition.element && styleDefinition.element == widget.element.getName())
