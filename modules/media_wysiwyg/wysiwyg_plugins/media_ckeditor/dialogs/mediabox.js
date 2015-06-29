@@ -10,6 +10,20 @@ CKEDITOR.dialog.add( 'mediabox', function( editor ) {
     styles = {};
   }
 
+  /**
+   * @param CKEDITOR.ui.dialog.radio
+   * @param bool
+   */
+  function _toggleRadiosActive(radioField, enable) {
+    // There must be a better way to do this as ._. is supposed to be
+    // internal only.
+    var children = radioField._.children;
+    radioField.disable();
+    for (var i = 0; i < children.length; i++) {
+      children[i][enable ? 'enable' : 'disable']();
+    }
+  }
+
   return {
     title: 'Edit Media item',
     minWidth: 200,
@@ -104,20 +118,15 @@ CKEDITOR.dialog.add( 'mediabox', function( editor ) {
 
       // Currently only supporting these options for images.
       if (widget.element.getName() != 'img') {
-        alignField.disable();
-        for (var i = 0; i < alignField._.children.length; i++) {
-          alignField._.children[i].disable();
-        }
+        _toggleRadiosActive(alignField, false);
         alignField.getElement().hide();
         widthField.disable();
         widthField.getElement().hide();
         heightField.disable();
         heightField.getElement().hide();
       } else {
-        // Radios must be re-enabled
-        for (var i = 0; i < alignField._.children.length; i++) {
-          alignField._.children[i].enable();
-        }
+        // Radios must be re-enabled.
+        _toggleRadiosActive(alignField, true);
         alignField.getElement().show();
         widthField.getElement().show();
         heightField.getElement().show();
