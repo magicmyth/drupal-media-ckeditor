@@ -405,6 +405,9 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
         // wrapper is displayed property.
         'line-height:0' +
       '}' +
+      '.media-element-token{' +
+        'word-break: break-all;' +
+      '}' +
       '.cke_mediabox_resizer{' +
         'display:none;' +
         'position:absolute;' +
