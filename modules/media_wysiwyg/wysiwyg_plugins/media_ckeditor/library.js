@@ -42,8 +42,10 @@
     },
 
     insertMediaFile: function (mediaFile, formattedMedia, ckeditorInstance) {
+      // Prevent content of <a> tags being removed in create_element().
+      formattedMedia.options.link_text = null;
       // Customization of Drupal.media.filter.registerNewElement().
-      var element = Drupal.media.filter.create_element(formattedMedia.html, {
+      var element = Drupal.media.filter.create_element(formattedMedia.html.trim(), {
         fid: mediaFile.fid,
         view_mode: formattedMedia.type,
         attributes: formattedMedia.options
@@ -51,15 +53,13 @@
 
       // Use own wrapper element to be able to properly deal with selections.
       // Check prepareDataForWysiwygMode() in plugin.js for details.
-      var wysiwygHTML = Drupal.media.filter.getWysiwygHTML(element);
+      var wysiwygHTML = Drupal.media.filter.outerHTML(element);
 
       // Insert element. Use CKEDITOR.dom.element.createFromHtml to ensure our
       // custom wrapper element is preserved.
       if (wysiwygHTML.indexOf("<!--MEDIA-WRAPPER-START-") !== -1) {
         ckeditorInstance.plugins.media.mediaLegacyWrappers = true;
         wysiwygHTML = wysiwygHTML.replace(/<!--MEDIA-WRAPPER-START-(\d+)-->(.*?)<!--MEDIA-WRAPPER-END-\d+-->/gi, '');
-      } else {
-        wysiwygHTML = wysiwygHTML;
       }
 
       var editorElement = CKEDITOR.dom.element.createFromHtml(wysiwygHTML);
