@@ -555,6 +555,9 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
                   widgetElement.addClass( alignClasses[ alignmentsObj[ align ] ] );
                 else
                   styles[ 'float' ] = align;
+              } else if ( align == 'center' && alignClasses ) {
+                // We only support a center class. No inline styling. Needs some discussing.
+                widgetElement.addClass( alignClasses[ alignmentsObj[ align ] ] );
               }
 
               // Update element styles.
@@ -579,7 +582,10 @@ For licensing, see LICENSE.html or http://ckeditor.com/license
                   align = 'left';
                 } else if ( el.hasClass( alignClasses[ alignmentsObj.right ] ) ) {
                   align = 'right'
+                } else if ( el.hasClass( alignClasses[ alignmentsObj.center ] ) ) {
+                  align = 'center'
                 }
+
                 if ( align ) {
                   el.removeClass( alignClasses[ alignmentsObj[ align ] ] );
                 } else {
